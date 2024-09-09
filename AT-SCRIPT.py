@@ -8,7 +8,6 @@ from qgis.core import QgsVectorLayer, QgsProject, QgsPrintLayout, QgsReadWriteCo
 from qgis.PyQt.QtWidgets import QFileDialog
 from qgis.PyQt.QtXml import QDomDocument
 from qgis import processing
-
 class LayerLoader:
     def __init__(self):
         self.geopackage_layer = None
@@ -81,7 +80,7 @@ class LayerLoader:
                             reprojected_sub_vlayer = result['OUTPUT']
                             base_name = os.path.splitext(os.path.basename(file_path))[0]
                             reprojected_sub_vlayer.setName(base_name)
-                            base_renderer = QgsSingleSymbolRenderer(QgsFillSymbol.createSimple({'color': 'rgba(255, 255, 255, 0.3)', 'outline_color': '#0059ff', 'outline_width': 0.98}))
+                            base_renderer = QgsSingleSymbolRenderer(QgsFillSymbol.createSimple({'color': 'rgba(255, 255, 255, 0.5)', 'outline_color': '#0059ff', 'outline_width': 0.99}))
                             renderer = QgsInvertedPolygonRenderer(base_renderer)
                             # Define symbol from renderer
                             some_symbol = renderer.symbols(QgsRenderContext())[0]
@@ -94,13 +93,13 @@ class LayerLoader:
                         else:
                             base_name = os.path.splitext(os.path.basename(file_path))[0]
                             sub_vlayer.setName(base_name)
-                            base_renderer = QgsSingleSymbolRenderer(QgsFillSymbol.createSimple({'color': 'rgba(255, 255, 255, 0.3)', 'outline_color': '#0059ff', 'outline_width': 0.98}))
+                            base_renderer = QgsSingleSymbolRenderer(QgsFillSymbol.createSimple({'color': 'rgba(255, 255, 255, 0.5)', 'outline_color': '#0059ff', 'outline_width': 0.99}))
                             renderer = QgsInvertedPolygonRenderer(base_renderer)
                             # Define symbol from renderer
                             some_symbol = renderer.symbols(QgsRenderContext())[0]
                             # Define symbology
                             some_symbol.setColor(QColor.fromRgb(255,255,255))   # Colour
-                            some_symbol.setOpacity(0.50)                         # Opacity
+                            some_symbol.setOpacity(0.30)                         # Opacity
                             sub_vlayer.setRenderer(renderer)
                             sub_vlayer.triggerRepaint()
                             self.add_layer_to_group(sub_vlayer, "Deslinde AT")
@@ -128,7 +127,7 @@ class LayerLoader:
                     name = sublayer.split('!!::!!')[1]
                     uri = f"{abs_path}|layername={name}"
                     sub_vlayer = QgsVectorLayer(uri, name, 'ogr')
-                    sub_vlayer.setOpacity(0.8) # Establecer la transparencia en 0.x (x0%)
+                    sub_vlayer.setOpacity(0.9) # Establecer la transparencia en 0.x (x0%)
                     qml_path = f"/ruta/a/los/archivos/qml/{name}.qml"
                     if os.path.exists(qml_path):
                         sub_vlayer.loadNamedStyle(qml_path)
@@ -243,7 +242,12 @@ class LayerLoader:
             info_label.attemptMove(QgsLayoutPoint(162.0, 6.4))
             newcomp.addLayoutItem(info_label)
             scalebar.setFont(font)
-            scalebar.attemptMove(QgsLayoutPoint(161.4, 254.2))#escala grafica
+            scalebar.attemptMove(QgsLayoutPoint(157.5, 256.0))#escala grafica
+            scalebar.setSegmentSizeMode(1)  # Establece el modo de tamaño de segmento a 'Fit segment width'
+            scalebar.setNumberOfSegmentsLeft(0)  # Establece el número de segmentos a la izquierda a 0
+            scalebar.setNumberOfSegments(2)  # Establece el número total de segmentos a 2
+            scalebar.setMinimumBarWidth(30)  # Establece el ancho mínimo de la barra de escala a 30
+            scalebar.setMaximumBarWidth(40)  # Establece el ancho máximo de la barra de escala a 40
             grid = new_map.grid()
             if self.map_scale == 70000:
                 grid.setIntervalX(7500.1)
@@ -254,6 +258,9 @@ class LayerLoader:
             else:
                 grid.setIntervalX(9000.1)
                 grid.setIntervalY(9000.1)
+            grid.setUnits(QgsLayoutItemMapGrid.DynamicPageSizeBased)# Ajustar la grilla por el ancho del segmento
+            grid.setMinimumIntervalWidth(50)  # Aquí puedes ajustar el ancho mínimo del segmento
+            grid.setMaximumIntervalWidth(100)  # Aquí puedes ajustar el ancho máximo del segmento
             newcomp.addLayoutItem(scalebar)
             grid.setStyle(QgsLayoutItemMapGrid.FrameAnnotationsOnly)
             grid.setAnnotationEnabled(True)
@@ -279,7 +286,7 @@ class LayerLoader:
             scalebar_numerica.setNumberOfSegments(2)
             scalebar_numerica.setUnitsPerSegment(100.0)
             scalebar_numerica.setUnitLabel('m')
-            scalebar_numerica.attemptMove(QgsLayoutPoint(179.7, 270.79))
+            scalebar_numerica.attemptMove(QgsLayoutPoint(178.2, 270.5))
             scalebar_numerica.setFont(font)
             newcomp.addLayoutItem(scalebar_numerica)
         else:
@@ -364,6 +371,9 @@ class LayerLoader:
         root = QgsProject.instance().layerTreeRoot()
         for group in root.children():
             if isinstance(group, QgsLayerTreeGroup):
+                # No exportar ninguna capa del grupo "00. Variables complementarias"
+                if group.name() == "00. Variables complementarias":
+                    continue
                 for layer_node in group.children():
                     layer = layer_node.layer()
                     if layer != self.geopackage_layer:
@@ -422,7 +432,7 @@ class LayerLoader:
             canvas = iface.mapCanvas()
             new_map.setExtent(canvas.extent())
             new_map.attemptResize(map.sizeWithUnits())
-            new_map.setScale(7000000)
+            new_map.setScale(6000000)
             # Establecer las capas del mapa esquicio en una lista que contiene la capa de entrada y la capa de teselas
             if tile_layer and tile_layer.isValid():
                 new_map.setLayers([self.geopackage_layer, tile_layer])
@@ -456,12 +466,48 @@ class LayerLoader:
             layout.removeLayoutItem(map)
         else:
             print('No se encontró un mapa con el ID especificado en la plantilla')
-
+    def check_layer_and_categories(self,layer_name):
+        all_layers = QgsProject.instance().mapLayersByName(layer_name)
+        if not all_layers:
+            print(f"La capa '{layer_name}' no existe en el proyecto.")
+            return []
+        map_layer = all_layers[0]
+        if map_layer.renderer().type() == 'categorizedSymbol':
+            return [cat.value() for cat in map_layer.renderer().categories() if not cat.renderState()]
+        else:
+            #print(f"La capa '{layer_name}' no está clasificada.")
+            return []
+    def check_layout_and_item(self, layout_name, item_id, layer_name, categories_to_remove):
+        manager = QgsProject.instance().layoutManager()
+        layout = manager.layoutByName(layout_name)
+        if not layout:
+            # print(f"La composición '{layout_name}' no existe en el proyecto.")
+            return
+        legend = layout.itemById(item_id)
+        if not legend or not isinstance(legend, QgsLayoutItemLegend):
+            # print(f"El elemento '{item_id}' no existe en la composición '{layout_name}'.")
+            return
+        target_layer = next((layer for layer in [layer.layer() for layer in legend.model().rootGroup().findLayers()] if layer.name() == layer_name), None)
+        if target_layer and target_layer.renderer().type() == 'categorizedSymbol':
+            root = legend.model().rootGroup().findLayer(target_layer)
+            if root is not None:
+                nodes = legend.model().layerLegendNodes(root)
+                indexes_to_remove = [nodes.index(node) for node in nodes if node.data(0) in categories_to_remove]
+                QgsMapLayerLegendUtils.setLegendNodeOrder(root, [i for i in range(len(nodes)) if i not in indexes_to_remove])
+                legend.model().refreshLayerLegend(root)
+        else:
+            # print(f"La capa '{layer_name}' no existe en el elemento '{item_id}' o no está clasificada.")
+            pass
+    def process_layers(self, layer_names, layout_name, item_id):
+        if isinstance(layer_names, str):
+            layer_names = [layer_names]
+        for layer_name in layer_names:
+            self.check_layout_and_item(layout_name, item_id, layer_name, self.check_layer_and_categories(layer_name))
 layer_loader = LayerLoader()
 layer_loader.select_and_load_geopackage()
 layer_loader.load_layers_from_selected_folder()
 intersecting_layers = layer_loader.find_intersections_v5(['intersects'])
-template_urls = ["https://raw.githubusercontent.com/camiloceacarvajal/plantilla_MBN/main/17.qpt", "https://gitlab.com/camiloceacarvajal1/plantilla_MBN/-/raw/main/17.qpt?ref_type=heads"]
+template_urls = ["https://raw.githubusercontent.com/camiloceacarvajal/PLANTILLA-MBN/main/21.qpt", "https://gitlab.com/camiloceacarvajal1/plantilla_MBN/-/raw/main/21.qpt?ref_type=heads"]
 layer_loader.load_template_from_url(template_urls)
 layer_loader.update_legend(intersecting_layers)
 layer_loader.export_intersecting_layers_v3(['intersects'])
@@ -473,5 +519,6 @@ layer_names = ["Riesgo de incendios forestales", "Cartas de inundación por tsun
 attribute_names = ["Riesgo ", "Name",'peligro']
 layer_loader.update_renderer(layer_names, attribute_names)
 layer_loader.update_group_visibility()
+layer_loader.process_layers(layer_names, "1", "Leyenda")
 layer_loader.hide_complementary_variables_group()
-#Version julio-2024
+#Version septiembre-2024-06-09-experimental
